@@ -54,7 +54,6 @@ static int dispatch_external_command(struct command *pipeline)
 	 * Good luck!
 	 */
 	int status;
-	bool childFail = false;
 	pid_t pid = fork();
 	if (pid == -1){
 		fprintf(stderr, "Error Occured\n");
@@ -63,25 +62,17 @@ static int dispatch_external_command(struct command *pipeline)
 	else if (pid == 0){
 		execvp(pipeline->argv[0], pipeline->argv);
 		fprintf(stderr, "Execution Failed\n");
-		childFail = true;
-		exit(127);
+		exit(EXIT_FAILURE);
 	} else{
 		if (waitpid(pid, &status, 0) <= 0){
 			fprintf(stderr, "Wait Failed");
 			exit(0);
 		}
 		else if(WIFEXITED(status) && WEXITSTATUS(status)){
-			if(WEXITSTATUS(status) == 127){
-				fprintf(stderr, "Execution Failed\n");
-				childFail = true;
-			}
+			return (WEXITSTATUS(status));
 		}
 	}
-	if (childFail){
-		return -1;
-	} else{
-		return 0;
-	}
+	return 0;
 }
 
 /**
