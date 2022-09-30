@@ -64,7 +64,7 @@ static int dispatch_external_command(struct command *pipeline)
 		execvp(pipeline->argv[0], pipeline->argv);
 		fprintf(stderr, "Execution Failed\n");
 		childFail = true;
-		// exit(0);
+		exit(127);
 	} else{
 		if (waitpid(pid, &status, 0) <= 0){
 			fprintf(stderr, "Wait Failed");
