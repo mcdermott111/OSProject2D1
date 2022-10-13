@@ -10,6 +10,8 @@
 #include "shell_builtins.h"
 #include "parser.h"
 
+#define BUFFER_SIZE PIPE_BUF;
+
 /**
  * dispatch_external_command() - run a pipeline of commands
  *
@@ -53,25 +55,74 @@ static int dispatch_external_command(struct command *pipeline)
 	 *
 	 * Good luck!
 	 */
-	int status;
-	pid_t pid = fork();
-	if (pid == -1){
-		fprintf(stderr, "Error Occured\n");
-		exit(EXIT_FAILURE);
-	}
-	else if (pid == 0){
-		execvp(pipeline->argv[0], pipeline->argv);
-		fprintf(stderr, "Execution Failed\n");
-		exit(EXIT_FAILURE);
-	} else{
-		if (waitpid(pid, &status, 0) <= 0){
-			fprintf(stderr, "Wait Failed");
-			exit(0);
+	// int i = 0;
+	// int stdoutBreak = 0;
+	// int pipeBreak = 0;
+	// int appendBreak = 0;
+	// int truncateBreak = 0;
+
+	// char *stdoutString = "COMMAND_OUTPUT_STDOUT";
+	// char *pipeString = "COMMAND_OUTPUT_PIPE";
+	// char *appendString = "COMMAND_OUTPUT_APPEND";
+	// char *truncateString = "COMMAND_OUTPUT_TRUNCATE";
+	enum command_output_type stdoutLine;
+	enum command_output_type pipeLine;
+	enum command_output_type appendLine;
+	enum command_output_type truncateLine;
+
+	stdoutLine = COMMAND_OUTPUT_STDOUT;
+	pipeLine = COMMAND_OUTPUT_PIPE;
+	appendLine = COMMAND_OUTPUT_FILE_APPEND;
+	truncateLine = COMMAND_OUTPUT_FILE_TRUNCATE;
+	
+	if (pipeline->output_type == stdoutLine) {
+		int status;
+		pid_t pid = fork();
+		if (pid == -1){
+			fprintf(stderr, "Error Occured\n");
+			exit(EXIT_FAILURE);
 		}
-		else if(WIFEXITED(status) && WEXITSTATUS(status)){
-			return (WEXITSTATUS(status));
+		else if (pid == 0){
+			execvp(pipeline->argv[0], pipeline->argv);
+			fprintf(stderr, "Execution Failed\n");
+			exit(EXIT_FAILURE);
+		} else{
+			if (waitpid(pid, &status, 0) <= 0){
+				fprintf(stderr, "Wait Failed");
+				exit(0);
+			}
+			else if(WIFEXITED(status) && WEXITSTATUS(status)){
+				return (WEXITSTATUS(status));
+			}
 		}
 	}
+	else if (pipeline->output_type == pipeLine) {
+		int status;
+		char inbuf[65536];
+    	int p[2], nbytes;
+  
+		if (pipe(p) < 0)
+			exit(1);
+		pid_t pid = fork();
+		if (pid == -1){
+			fprintf(stderr, "Error Occured\n");
+			exit(EXIT_FAILURE);
+		}
+		else if (pid == 0){
+			execvp(pipeline->argv[0], pipeline->argv);
+			fprintf(stderr, "Execution Failed\n");
+			exit(EXIT_FAILURE);
+		} else{
+			if (waitpid(pid, &status, 0) <= 0){
+				fprintf(stderr, "Wait Failed");
+				exit(0);
+			}
+			else if(WIFEXITED(status) && WEXITSTATUS(status)){
+				return (WEXITSTATUS(status));
+			}
+		}
+	}
+	
 	return 0;
 }
 
