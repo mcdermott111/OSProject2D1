@@ -53,10 +53,12 @@ static int dispatch_external_command(struct command *pipeline)
 			outputFileDesc = curr[1];
 		}
 		if (temp->output_type == COMMAND_OUTPUT_FILE_APPEND) {
-			outputFileDesc = open(temp->input_filename, O_APPEND);
+			outputFileDesc = open(temp->output_filename, O_APPEND);
+			printf("%d\n", outputFileDesc);
 		}
 		if (temp->output_type == COMMAND_OUTPUT_FILE_TRUNCATE) {
-			outputFileDesc = open(temp->input_filename, O_TRUNC);
+			outputFileDesc = open(temp->output_filename, O_TRUNC);
+			printf("%d\n", outputFileDesc);
 		}
 		pid_t pid = fork();
 		
@@ -68,7 +70,7 @@ static int dispatch_external_command(struct command *pipeline)
 		{
 			//printf("First  \n");
 			int inputFileDesc = STDIN_FILENO;
-			if (temp->output_filename == NULL && x > 0) {
+			if (temp->input_filename == NULL && x > 0) {
 				inputFileDesc = prev[0];
 			}else {
 				inputFileDesc = open(temp->input_filename, O_RDONLY);
