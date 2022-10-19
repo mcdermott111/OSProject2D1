@@ -52,7 +52,12 @@ static int dispatch_external_command(struct command *pipeline)
 			}
 			outputFileDesc = curr[1];
 		}
-		
+		if (temp->output_type == COMMAND_OUTPUT_FILE_APPEND) {
+			outputFileDesc = open(temp->input_filename, O_APPEND);
+		}
+		if (temp->output_type == COMMAND_OUTPUT_FILE_TRUNCATE) {
+			outputFileDesc = open(temp->input_filename, O_TRUNC);
+		}
 		pid_t pid = fork();
 		
 		// determine which output type it is and select a function to run that
