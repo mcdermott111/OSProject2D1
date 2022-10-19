@@ -49,12 +49,10 @@ static int dispatch_external_command(struct command *pipeline)
 			outputFileDesc = curr[1];
 		}
 		if (pipeline->output_type == COMMAND_OUTPUT_FILE_APPEND) {
-			outputFileDesc = open(pipeline->output_filename, O_APPEND, O_WRONLY, O_CREAT, 0664);
-			//printf("%d\n", outputFileDesc);
+			outputFileDesc = open(pipeline->output_filename, O_APPEND | O_WRONLY | O_CREAT, 0664);
 		}
 		if (pipeline->output_type == COMMAND_OUTPUT_FILE_TRUNCATE) {
-			outputFileDesc = open(pipeline->output_filename, O_TRUNC, O_WRONLY, O_CREAT, 0664);
-			//printf("%d\n", outputFileDesc);
+			outputFileDesc = open(pipeline->output_filename, O_TRUNC | O_WRONLY | O_CREAT, 0664);
 		}
 		pid_t pid = fork();
 		if (pid == 0)
