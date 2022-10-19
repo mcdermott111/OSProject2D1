@@ -35,15 +35,11 @@ static int dispatch_external_command(struct command *pipeline)
 	int status;
 	int curr[2];
 	int prev[2];
-	// put in while loop
-	struct command *temp = pipeline;
 	int x = 0;
 	while (true)
 	{
-		//printf("%d \n", x);
-		
 		int outputFileDesc = STDOUT_FILENO;
-		if (temp->output_type == COMMAND_OUTPUT_PIPE)
+		if (pipeline->output_type == COMMAND_OUTPUT_PIPE)
 		{
 			outputFileDesc = pipe(curr);
 			
@@ -52,48 +48,39 @@ static int dispatch_external_command(struct command *pipeline)
 			}
 			outputFileDesc = curr[1];
 		}
-		if (temp->output_type == COMMAND_OUTPUT_FILE_APPEND) {
-			outputFileDesc = open(temp->output_filename, O_APPEND);
-			printf("%d\n", outputFileDesc);
+		if (pipeline->output_type == COMMAND_OUTPUT_FILE_APPEND) {
+			outputFileDesc = open(pipeline->output_filename, O_APPEND, O_WRONLY, O_CREAT, 0664);
+			//printf("%d\n", outputFileDesc);
 		}
-		if (temp->output_type == COMMAND_OUTPUT_FILE_TRUNCATE) {
-			outputFileDesc = open(temp->output_filename, O_TRUNC);
-			printf("%d\n", outputFileDesc);
+		if (pipeline->output_type == COMMAND_OUTPUT_FILE_TRUNCATE) {
+			outputFileDesc = open(pipeline->output_filename, O_TRUNC, O_WRONLY, O_CREAT, 0664);
+			//printf("%d\n", outputFileDesc);
 		}
 		pid_t pid = fork();
-		
-		// determine which output type it is and select a function to run that
-		
-		
-
 		if (pid == 0)
 		{
-			//printf("First  \n");
 			int inputFileDesc = STDIN_FILENO;
-			if (temp->input_filename == NULL && x > 0) {
+			if (pipeline->input_filename == NULL && x > 0) {
 				inputFileDesc = prev[0];
 			}else {
-				inputFileDesc = open(temp->input_filename, O_RDONLY);
+				inputFileDesc = open(pipeline->input_filename, O_RDONLY);
 			}
-			// if (temp->output_filename != NULL) {
-			// 	outputFileDesc = open
-			// }
 			dup2(outputFileDesc, STDOUT_FILENO);
 			dup2(inputFileDesc, STDIN_FILENO);
-			if (temp->output_type == COMMAND_OUTPUT_PIPE)
+			if (pipeline->output_type == COMMAND_OUTPUT_PIPE)
 			{
 				close(curr[0]);
 			}
 			if (x > 0) {
 				close(prev[0]);
 			}
-			execvp(temp->argv[0], temp->argv);
+			execvp(pipeline->argv[0], pipeline->argv);
 		}
 		else
 		{
 			//printf("Second \n");
 			
-			if (temp->output_type == COMMAND_OUTPUT_PIPE)
+			if (pipeline->output_type == COMMAND_OUTPUT_PIPE)
 			{
 				close(curr[1]);
 			}
@@ -101,15 +88,19 @@ static int dispatch_external_command(struct command *pipeline)
 			{
 				close(prev[0]);
 			}
+			if (pipeline->output_type == COMMAND_OUTPUT_FILE_APPEND)
+				close(curr[1]);
+			if (pipeline->output_type == COMMAND_OUTPUT_FILE_TRUNCATE)
+				close(curr[0]);
 			if (waitpid(pid, &status, 0) <= 0)
 			{
 				fprintf(stderr, "Wait Failed");
 				exit(0);
 			}
-			if (temp->output_type != COMMAND_OUTPUT_PIPE) {
+			if (pipeline->output_type != COMMAND_OUTPUT_PIPE) {
 				break;
 			}
-			temp = temp->pipe_to;
+			pipeline = pipeline->pipe_to;
 		}
 		x++;
 		
