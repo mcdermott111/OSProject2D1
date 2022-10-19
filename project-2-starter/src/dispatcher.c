@@ -9,6 +9,7 @@
 #include "dispatcher.h"
 #include "shell_builtins.h"
 #include "parser.h"
+#include <fcntl.h>
 
 #define BUFFER_SIZE PIPE_BUF;
 
@@ -31,98 +32,87 @@
  */
 static int dispatch_external_command(struct command *pipeline)
 {
-	/*
-	 * Note: this is where you'll start implementing the project.
-	 *
-	 * It's the only function with a "TODO".  However, if you try
-	 * and squeeze your entire external command logic into a
-	 * single routine with no helper functions, you'll quickly
-	 * find your code becomes sloppy and unmaintainable.
-	 *
-	 * It's up to *you* to structure your software cleanly.  Write
-	 * plenty of helper functions, and even start making yourself
-	 * new files if you need.
-	 *
-	 * For D1: you only need to support running a single command
-	 * (not a chain of commands in a pipeline), with no input or
-	 * output files (output to stdout only).  In other words, you
-	 * may live with the assumption that the "input_file" field in
-	 * the pipeline struct you are given is NULL, and that
-	 * "output_type" will always be COMMAND_OUTPUT_STDOUT.
-	 *
-	 * For D2: you'll extend this function to support input and
-	 * output files, as well as pipeline functionality.
-	 *
-	 * Good luck!
-	 */
-	// int i = 0;
-	// int stdoutBreak = 0;
-	// int pipeBreak = 0;
-	// int appendBreak = 0;
-	// int truncateBreak = 0;
-
-	// char *stdoutString = "COMMAND_OUTPUT_STDOUT";
-	// char *pipeString = "COMMAND_OUTPUT_PIPE";
-	// char *appendString = "COMMAND_OUTPUT_APPEND";
-	// char *truncateString = "COMMAND_OUTPUT_TRUNCATE";
-	enum command_output_type stdoutLine;
-	enum command_output_type pipeLine;
-	enum command_output_type appendLine;
-	enum command_output_type truncateLine;
-
-	stdoutLine = COMMAND_OUTPUT_STDOUT;
-	pipeLine = COMMAND_OUTPUT_PIPE;
-	appendLine = COMMAND_OUTPUT_FILE_APPEND;
-	truncateLine = COMMAND_OUTPUT_FILE_TRUNCATE;
-	
-	if (pipeline->output_type == stdoutLine) {
-		int status;
-		pid_t pid = fork();
-		if (pid == -1){
-			fprintf(stderr, "Error Occured\n");
-			exit(EXIT_FAILURE);
+	int status;
+	int curr[2];
+	int prev[2];
+	// put in while loop
+	struct command *temp = pipeline;
+	int x = 0;
+	while (true)
+	{
+		//printf("%d \n", x);
+		
+		int outputFileDesc = STDOUT_FILENO;
+		if (temp->output_type == COMMAND_OUTPUT_PIPE)
+		{
+			outputFileDesc = pipe(curr);
+			
+			if (outputFileDesc < 0) {
+				exit(EXIT_FAILURE);
+			}
+			outputFileDesc = curr[1];
 		}
-		else if (pid == 0){
-			execvp(pipeline->argv[0], pipeline->argv);
-			fprintf(stderr, "Execution Failed\n");
-			exit(EXIT_FAILURE);
-		} else{
-			if (waitpid(pid, &status, 0) <= 0){
+		
+		pid_t pid = fork();
+		
+		// determine which output type it is and select a function to run that
+		
+		
+
+		if (pid == 0)
+		{
+			//printf("First  \n");
+			int inputFileDesc = STDIN_FILENO;
+			if (temp->output_filename == NULL && x > 0) {
+				inputFileDesc = prev[0];
+			}else {
+				inputFileDesc = open(temp->input_filename, O_RDONLY);
+			}
+			// if (temp->output_filename != NULL) {
+			// 	outputFileDesc = open
+			// }
+			dup2(outputFileDesc, STDOUT_FILENO);
+			dup2(inputFileDesc, STDIN_FILENO);
+			if (temp->output_type == COMMAND_OUTPUT_PIPE)
+			{
+				close(curr[0]);
+			}
+			if (x > 0) {
+				close(prev[0]);
+			}
+			execvp(temp->argv[0], temp->argv);
+		}
+		else
+		{
+			//printf("Second \n");
+			
+			if (temp->output_type == COMMAND_OUTPUT_PIPE)
+			{
+				close(curr[1]);
+			}
+			if (x > 0)
+			{
+				close(prev[0]);
+			}
+			if (waitpid(pid, &status, 0) <= 0)
+			{
 				fprintf(stderr, "Wait Failed");
 				exit(0);
 			}
-			else if(WIFEXITED(status) && WEXITSTATUS(status)){
-				return (WEXITSTATUS(status));
+			if (temp->output_type != COMMAND_OUTPUT_PIPE) {
+				break;
 			}
+			temp = temp->pipe_to;
 		}
+		x++;
+		
+		prev[0] = curr[0];
+		prev[1] = curr[1];
 	}
-	else if (pipeline->output_type == pipeLine) {
-		int status;
-		char inbuf[65536];
-    	int p[2], nbytes;
-  
-		if (pipe(p) < 0)
-			exit(1);
-		pid_t pid = fork();
-		if (pid == -1){
-			fprintf(stderr, "Error Occured\n");
-			exit(EXIT_FAILURE);
-		}
-		else if (pid == 0){
-			execvp(pipeline->argv[0], pipeline->argv);
-			fprintf(stderr, "Execution Failed\n");
-			exit(EXIT_FAILURE);
-		} else{
-			if (waitpid(pid, &status, 0) <= 0){
-				fprintf(stderr, "Wait Failed");
-				exit(0);
-			}
-			else if(WIFEXITED(status) && WEXITSTATUS(status)){
-				return (WEXITSTATUS(status));
-			}
-		}
+	if (WIFEXITED(status) && WEXITSTATUS(status))
+	{
+		return (WEXITSTATUS(status));
 	}
-	
 	return 0;
 }
 
@@ -138,11 +128,13 @@ static int dispatch_external_command(struct command *pipeline)
  * Return: the return status of the command.
  */
 static int dispatch_parsed_command(struct command *cmd, int last_rv,
-				   bool *shell_should_exit)
+								   bool *shell_should_exit)
 {
 	/* First, try to see if it's a builtin. */
-	for (size_t i = 0; builtin_commands[i].name; i++) {
-		if (!strcmp(builtin_commands[i].name, cmd->argv[0])) {
+	for (size_t i = 0; builtin_commands[i].name; i++)
+	{
+		if (!strcmp(builtin_commands[i].name, cmd->argv[0]))
+		{
 			/* We found a match!  Run it. */
 			return builtin_commands[i].handler(
 				(const char *const *)cmd->argv, last_rv,
@@ -155,15 +147,16 @@ static int dispatch_parsed_command(struct command *cmd, int last_rv,
 }
 
 int shell_command_dispatcher(const char *input, int last_rv,
-			     bool *shell_should_exit)
+							 bool *shell_should_exit)
 {
 	int rv;
 	struct command *parse_result;
 	enum parse_error parse_error = parse_input(input, &parse_result);
 
-	if (parse_error) {
+	if (parse_error)
+	{
 		fprintf(stderr, "Input parse error: %s\n",
-			parse_error_str[parse_error]);
+				parse_error_str[parse_error]);
 		return -1;
 	}
 
